@@ -1,2 +1,0 @@
-# SISCACIGS_UPDATE
-Update do projeto SISCACIGS
