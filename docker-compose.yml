@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: orf_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./central/pgdata:/var/lib/postgresql/data
+      # Se quiser criar o schema automaticamente na primeira vez:
+      - ./central/models.sql:/docker-entrypoint-initdb.d/01_models.sql
+
+  api:
+    build: ./central
+    container_name: orf_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Dentro da rede Docker, o host do Postgres é "db"
+      # DATABASE_URL: postgres://postgres:postgres@db:5432/orf
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./orf-dashboard
+      args:
+        # Esses valores vão pro build do Next (bundle do frontend)
+        NEXT_PUBLIC_CENTRAL_API_URL: ${NEXT_PUBLIC_CENTRAL_API_URL}
+        NEXT_PUBLIC_DASHBOARD_URL: ${NEXT_PUBLIC_DASHBOARD_URL}
+        INTERNAL_CENTRAL_API_URL: ${INTERNAL_CENTRAL_API_URL}
+    container_name: orf_web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      # Também entram no runtime (só por segurança)
+      NEXT_PUBLIC_CENTRAL_API_URL: ${NEXT_PUBLIC_CENTRAL_API_URL}
+      NEXT_PUBLIC_DASHBOARD_URL: ${NEXT_PUBLIC_DASHBOARD_URL}
+      INTERNAL_CENTRAL_API_URL: ${INTERNAL_CENTRAL_API_URL}
+    depends_on:
+      - api
+    ports:
+      # Usuário acessa só http://IP_DO_SERVIDOR (porta 80)
+      - "80:3000"
